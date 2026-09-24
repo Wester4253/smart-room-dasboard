@@ -1,0 +1,7 @@
+{
+  "name": "Boox Smart Room",
+  "content_in_root": false,
+  "render_readme": true,
+  "domains": ["boox_smart_room"],
+  "homeassistant": "2024.6.0"
+}

@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Hand-authored mark: a checklist card with two ticked lines, and a pen
+  crossing the corner to represent handwriting-to-todo conversion.
+  All geometry below is plain rectangles/paths, no generated artwork.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Notepad card -->
+    <path
+        android:pathData="M32,26 h44 a6,6 0 0 1 6,6 v44 a6,6 0 0 1 -6,6 h-44 a6,6 0 0 1 -6,-6 v-44 a6,6 0 0 1 6,-6 z"
+        android:fillColor="#FFFFFF"
+        android:strokeColor="#202124"
+        android:strokeWidth="4" />
+
+    <!-- Checkbox 1 (checked) -->
+    <path
+        android:pathData="M40,44 h8 v8 h-8 z"
+        android:strokeColor="#202124"
+        android:strokeWidth="3"
+        android:fillColor="#00000000" />
+    <path
+        android:pathData="M41.5,48 l2,2.4 l4,-5"
+        android:strokeColor="#202124"
+        android:strokeWidth="2.6"
+        android:fillColor="#00000000"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <path
+        android:pathData="M54,48 h22"
+        android:strokeColor="#202124"
+        android:strokeWidth="4"
+        android:strokeLineCap="round" />
+
+    <!-- Checkbox 2 (unchecked) -->
+    <path
+        android:pathData="M40,62 h8 v8 h-8 z"
+        android:strokeColor="#202124"
+        android:strokeWidth="3"
+        android:fillColor="#00000000" />
+    <path
+        android:pathData="M54,66 h16"
+        android:strokeColor="#202124"
+        android:strokeWidth="4"
+        android:strokeLineCap="round" />
+
+    <!-- Pen crossing the top-right corner -->
+    <path
+        android:pathData="M70,34 l16,-16 l6,6 l-16,16 z"
+        android:fillColor="#202124" />
+    <path
+        android:pathData="M86,18 l6,-6 l6,6 l-6,6 z"
+        android:fillColor="#202124" />
+    <path
+        android:pathData="M68,36 l4,4 l-7,3 z"
+        android:fillColor="#202124" />
+</vector>
