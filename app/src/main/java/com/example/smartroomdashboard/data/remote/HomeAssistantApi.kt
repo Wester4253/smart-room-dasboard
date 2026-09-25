@@ -1,6 +1,7 @@
 package com.example.smartroomdashboard.data.remote
 
 import com.example.smartroomdashboard.domain.Todo
+
 import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.GET
@@ -17,6 +18,7 @@ data class RemoteTodo(
     val uid: String? = null,
     val status: String? = null,
     val due: String? = null,
+    val description: String? = null,
 )
 
 interface HomeAssistantApi {
@@ -24,9 +26,11 @@ interface HomeAssistantApi {
     suspend fun getStates(): Response<List<HomeAssistantState>>
 }
 
-fun RemoteTodo.toDomain() = Todo(
+fun RemoteTodo.toDomain(listEntityId: String = "") = Todo(
     id = uid ?: summary,
     title = summary,
+    description = description.orEmpty(),
     completed = status.equals("completed", ignoreCase = true),
     dueDate = due,
+    listEntityId = listEntityId,
 )

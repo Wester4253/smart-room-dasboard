@@ -3,6 +3,7 @@ package com.example.smartroomdashboard.ui
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.smartroomdashboard.data.local.SettingsStore
+import com.example.smartroomdashboard.data.remote.TodoEntity
 import com.example.smartroomdashboard.data.remote.TodoRepository
 import com.example.smartroomdashboard.data.security.SecureStorage
 import com.example.smartroomdashboard.domain.AppSettings
@@ -16,6 +17,7 @@ import kotlinx.coroutines.launch
 data class TodoUiState(
     val todos: List<Todo> = emptyList(),
     val settings: AppSettings = AppSettings(),
+    val todoLists: List<TodoEntity> = emptyList(),
     val isBusy: Boolean = false,
     val message: String? = null,
 )
@@ -44,12 +46,17 @@ class TodoViewModel(
 
     fun refresh() = launchBusy {
         repository.refresh().onFailure { showError(it) }
+        repository.discoverTodoEntities()
+            .onSuccess { entities ->
+                mutableState.value = mutableState.value.copy(todoLists = entities)
+            }
     }
 
     fun discoverTodoEntities() = launchBusy {
         repository.discoverTodoEntities()
             .onSuccess { entities ->
                 mutableState.value = mutableState.value.copy(
+                    todoLists = entities,
                     message = if (entities.isEmpty()) {
                         "No todo entities found. Add a Local Todo list in Home Assistant first."
                     } else {
@@ -60,8 +67,13 @@ class TodoViewModel(
             .onFailure { showError(it) }
     }
 
-    fun add(title: String) = launchBusy {
-        repository.add(title).onFailure { showError(it) }
+    fun add(
+        title: String,
+        description: String = "",
+        listEntityId: String = "",
+        dueDate: String? = null,
+    ) = launchBusy {
+        repository.add(title, description, listEntityId, dueDate).onFailure { showError(it) }
     }
 
     fun update(todo: Todo) = launchBusy {
@@ -76,13 +88,24 @@ class TodoViewModel(
         repository.setCompleted(todo, !todo.completed).onFailure { showError(it) }
     }
 
-    fun saveSettings(url: String, entityId: String, token: String, dashboardPath: String) {
+    fun move(todo: Todo, destEntityId: String) = launchBusy {
+        repository.move(todo, destEntityId).onFailure { showError(it) }
+    }
+
+    fun saveSettings(
+        url: String,
+        entityId: String,
+        token: String,
+        dashboardPath: String,
+        boardEntityIds: List<String>,
+    ) {
         viewModelScope.launch {
             settingsStore.save(
                 AppSettings(
                     homeAssistantUrl = url.trim(),
                     todoEntityId = entityId.trim(),
                     dashboardPath = dashboardPath.trim().trim('/').ifBlank { "lovelace/0" },
+                    boardEntityIds = boardEntityIds,
                 ),
             )
             if (token.isNotBlank()) secureStorage.write(TOKEN_KEY, token.trim())

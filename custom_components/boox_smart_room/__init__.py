@@ -68,6 +68,8 @@ async def _call_todo_service(
         vol.Required("type"): "boox_smart_room/todo/add",
         **_BASE_SCHEMA,
         vol.Required("item"): vol.All(cv.string, vol.Length(min=1), str.strip),
+        vol.Optional("description"): cv.string,
+        vol.Optional("due"): cv.string,
     }
 )
 @websocket_api.async_response
@@ -82,7 +84,16 @@ async def websocket_handle_add(
         connection,
         msg,
         "add_item",
-        {"entity_id": msg["entity_id"], "item": msg["item"]},
+        {
+            key: value
+            for key, value in {
+                "entity_id": msg["entity_id"],
+                "item": msg["item"],
+                "description": msg.get("description"),
+                "due": msg.get("due"),
+            }.items()
+            if value is not None and value != ""
+        },
     )
 
 
@@ -93,6 +104,8 @@ async def websocket_handle_add(
         vol.Required("item"): vol.All(cv.string, vol.Length(min=1), str.strip),
         vol.Optional("rename"): vol.All(cv.string, vol.Length(min=1), str.strip),
         vol.Optional("status"): vol.In(["needs_action", "completed"]),
+        vol.Optional("description"): cv.string,
+        vol.Optional("due"): cv.string,
     }
 )
 @websocket_api.async_response
@@ -102,8 +115,12 @@ async def websocket_handle_update(
     msg: dict[str, Any],
 ) -> None:
     """Update a todo item by its Home Assistant UID."""
-    if "rename" not in msg and "status" not in msg:
-        connection.send_error(msg["id"], "invalid_format", "rename or status is required")
+    if "rename" not in msg and "status" not in msg and "description" not in msg and "due" not in msg:
+        connection.send_error(
+            msg["id"],
+            "invalid_format",
+            "rename, status, description, or due is required",
+        )
         return
     await _call_todo_service(
         hass,
@@ -117,6 +134,8 @@ async def websocket_handle_update(
                 "item": msg["item"],
                 "rename": msg.get("rename"),
                 "status": msg.get("status"),
+                "description": msg.get("description"),
+                "due": msg.get("due"),
             }.items()
             if value is not None
         },

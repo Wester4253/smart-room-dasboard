@@ -11,6 +11,7 @@ enum class PendingOperationType {
     ADD,
     UPDATE,
     DELETE,
+    MOVE,
 }
 
 data class PendingTodoOperation(
@@ -21,6 +22,7 @@ data class PendingTodoOperation(
      * until their first refresh, but HA can always resolve the old summary.
      */
     val previousTitle: String? = null,
+    val sourceEntityId: String? = null,
 )
 
 interface TodoLocalStore {

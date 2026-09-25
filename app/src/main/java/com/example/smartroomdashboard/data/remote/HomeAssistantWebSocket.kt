@@ -39,6 +39,7 @@ internal fun parseTodoItemListResult(text: String): List<RemoteTodo> {
             uid = item.stringOrNull("uid"),
             status = item.stringOrNull("status"),
             due = item.stringOrNull("due"),
+            description = item.stringOrNull("description"),
         )
     }
 }
@@ -70,6 +71,8 @@ class HomeAssistantWebSocket(
         item: String,
         rename: String? = null,
         status: String? = null,
+        description: String? = null,
+        due: String? = null,
     ) {
         withTimeout(20_000) {
             suspendCancellableCoroutine { continuation ->
@@ -102,6 +105,8 @@ class HomeAssistantWebSocket(
                                         )
                                         rename?.let { append(""","rename":${jsonString(it)}""") }
                                         status?.let { append(""","status":${jsonString(it)}""") }
+                                        description?.let { append(""","description":${jsonString(it)}""") }
+                                        due?.let { append(""","due":${jsonString(it)}""") }
                                         append('}')
                                     }
                                     webSocket.send(fields)

@@ -7,6 +7,7 @@ import com.example.smartroomdashboard.data.local.TodoLocalStore
 import com.example.smartroomdashboard.data.security.SecureStorage
 import com.example.smartroomdashboard.domain.Todo
 import com.example.smartroomdashboard.domain.normalizedBaseUrl
+import com.example.smartroomdashboard.domain.syncedEntityIds
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -20,11 +21,16 @@ interface TodoRepository {
     fun observeTodos(): Flow<List<Todo>>
     suspend fun refresh(): Result<List<Todo>>
     suspend fun discoverTodoEntities(): Result<List<TodoEntity>>
-    suspend fun add(title: String): Result<Todo>
+    suspend fun add(
+        title: String,
+        description: String = "",
+        listEntityId: String = "",
+        dueDate: String? = null,
+    ): Result<Todo>
     suspend fun update(todo: Todo): Result<Todo>
     suspend fun delete(todo: Todo): Result<Unit>
     suspend fun setCompleted(todo: Todo, completed: Boolean): Result<Todo>
-    // Diagnostic: test a raw base URL + token without saving credentials
+    suspend fun move(todo: Todo, destEntityId: String): Result<Todo>
     suspend fun testConnection(baseUrl: String, token: String): Result<String>
 }
 
@@ -49,6 +55,8 @@ typealias TodoItemMutator = suspend (
     item: String,
     rename: String?,
     status: String?,
+    description: String?,
+    due: String?,
 ) -> Unit
 
 private data class HaConnection(
@@ -76,12 +84,14 @@ class HomeAssistantTodoRepository(
     override suspend fun refresh(): Result<List<Todo>> = runCatching {
         val connection = connection()
         syncPending(connection)
-        listItems(connection.baseUrl, connection.token, connection.entityId, connection.api)
-            .map(RemoteTodo::toDomain)
-            .also {
-                local.write(it)
-                cachedTodos.value = it
-            }
+        val config = settings.settings.first()
+        val all = config.syncedEntityIds().flatMap { entityId ->
+            listItems(connection.baseUrl, connection.token, entityId, connection.api)
+                .map { it.toDomain(entityId) }
+        }
+        local.write(all)
+        cachedTodos.value = all
+        all
     }
 
     override suspend fun discoverTodoEntities(): Result<List<TodoEntity>> = runCatching {
@@ -104,12 +114,37 @@ class HomeAssistantTodoRepository(
             }
     }
 
-    override suspend fun add(title: String): Result<Todo> = mutate(title)
+    override suspend fun add(
+        title: String,
+        description: String,
+        listEntityId: String,
+        dueDate: String?,
+    ): Result<Todo> {
+        if (title.isBlank()) return Result.failure(IllegalArgumentException("A todo needs a title"))
+        val entityId = listEntityId.ifBlank { settings.settings.first().todoEntityId }
+        val newTodo = Todo(
+            title = title.trim(),
+            description = description.trim(),
+            dueDate = dueDate?.trim()?.ifBlank { null },
+            listEntityId = entityId,
+        )
+        return runCatching {
+            val updated = local.read() + newTodo
+            local.write(updated)
+            cachedTodos.value = updated
+            enqueueAndSync(PendingTodoOperation(PendingOperationType.ADD, newTodo))
+            newTodo
+        }
+    }
 
     override suspend fun update(todo: Todo): Result<Todo> {
         if (todo.title.isBlank()) return Result.failure(IllegalArgumentException("A todo needs a title"))
         return runCatching {
-            val normalized = todo.copy(title = todo.title.trim())
+            val normalized = todo.copy(
+                title = todo.title.trim(),
+                description = todo.description.trim(),
+                dueDate = todo.dueDate?.trim()?.ifBlank { null },
+            )
             val oldTodo = local.read().firstOrNull { it.id == todo.id }
             val updated = local.read().map { if (it.id == todo.id) normalized else it }
             local.write(updated)
@@ -119,6 +154,7 @@ class HomeAssistantTodoRepository(
                     type = PendingOperationType.UPDATE,
                     todo = normalized,
                     previousTitle = oldTodo?.title?.takeIf { it != normalized.title },
+                    sourceEntityId = oldTodo?.listEntityId,
                 ),
             )
             normalized
@@ -136,15 +172,24 @@ class HomeAssistantTodoRepository(
         return update(todo.copy(completed = completed))
     }
 
-    private suspend fun mutate(title: String): Result<Todo> {
-        if (title.isBlank()) return Result.failure(IllegalArgumentException("A todo needs a title"))
-        val newTodo = Todo(title = title.trim())
+    override suspend fun move(todo: Todo, destEntityId: String): Result<Todo> {
+        val dest = destEntityId.trim()
+        require(dest.isNotBlank()) { "Choose a destination list" }
+        if (todo.listEntityId == dest) return Result.success(todo)
         return runCatching {
-            val updated = local.read() + newTodo
+            val moved = todo.copy(listEntityId = dest)
+            val updated = local.read().map { if (it.id == todo.id) moved else it }
             local.write(updated)
             cachedTodos.value = updated
-            enqueueAndSync(PendingTodoOperation(PendingOperationType.ADD, newTodo))
-            newTodo
+            enqueueAndSync(
+                PendingTodoOperation(
+                    type = PendingOperationType.MOVE,
+                    todo = moved,
+                    previousTitle = todo.title,
+                    sourceEntityId = todo.listEntityId,
+                ),
+            )
+            moved
         }
     }
 
@@ -156,84 +201,117 @@ class HomeAssistantTodoRepository(
     private suspend fun syncPending(connection: HaConnection) {
         val pending = local.readPendingOperations()
         pending.forEachIndexed { index, operation ->
-                runCatching {
-                    val item = if (operation.type == PendingOperationType.UPDATE) {
-                        resolveUpdateItem(operation, connection)
-                    } else if (operation.type == PendingOperationType.DELETE) {
-                        resolveDeleteItem(operation, connection)
-                    } else {
-                        null
-                    }
-                    apply(operation, connection, item)
-                }.onFailure {
-                    local.writePendingOperations(pending.drop(index))
-                    throw it
-                }
+            runCatching {
+                apply(operation, connection)
+            }.onFailure {
+                local.writePendingOperations(pending.drop(index))
+                throw it
+            }
         }
         if (pending.isNotEmpty()) local.writePendingOperations(emptyList())
     }
 
-    private suspend fun resolveUpdateItem(
+    private suspend fun resolveRemoteItem(
         operation: PendingTodoOperation,
         connection: HaConnection,
-    ): String {
-        val remoteItems = listItems(
-            connection.baseUrl,
-            connection.token,
-            connection.entityId,
-            connection.api,
-        )
-        val match = remoteItems.firstOrNull { remote ->
-            remote.uid == operation.todo.id ||
-                remote.summary == operation.previousTitle ||
-                remote.summary == operation.todo.title
-        }
-        return checkNotNull(match) {
-            "Home Assistant does not contain the todo being updated. " +
-                "Refresh the list before editing it; the update was kept queued locally."
-        }.let { it.uid ?: it.summary }
-    }
-
-    private suspend fun resolveDeleteItem(
-        operation: PendingTodoOperation,
-        connection: HaConnection,
+        entityId: String,
     ): String? {
         val remoteItems = listItems(
             connection.baseUrl,
             connection.token,
-            connection.entityId,
+            entityId,
             connection.api,
         )
         return remoteItems.firstOrNull { remote ->
-            remote.uid == operation.todo.id || remote.summary == operation.todo.title
+            remote.uid == operation.todo.id ||
+                remote.summary == operation.previousTitle ||
+                remote.summary == operation.todo.title
         }?.let { it.uid ?: it.summary }
     }
 
     private suspend fun apply(
         operation: PendingTodoOperation,
         connection: HaConnection,
-        resolvedItem: String? = null,
     ) {
-        if (operation.type == PendingOperationType.DELETE && resolvedItem == null) {
-            return
+        val targetEntity = operation.todo.listEntityId.ifBlank { connection.entityId }
+        when (operation.type) {
+            PendingOperationType.ADD -> mutateItem(
+                connection.baseUrl,
+                connection.token,
+                targetEntity,
+                "add",
+                operation.todo.title,
+                null,
+                null,
+                operation.todo.description.takeIf { it.isNotBlank() },
+                operation.todo.dueDate,
+            )
+            PendingOperationType.UPDATE -> {
+                val item = checkNotNull(
+                    resolveRemoteItem(operation, connection, targetEntity),
+                ) {
+                    "Home Assistant does not contain the todo being updated. " +
+                        "Refresh the list before editing it; the update was kept queued locally."
+                }
+                mutateItem(
+                    connection.baseUrl,
+                    connection.token,
+                    targetEntity,
+                    "update",
+                    item,
+                    operation.todo.title,
+                    if (operation.todo.completed) "completed" else "needs_action",
+                    operation.todo.description,
+                    operation.todo.dueDate.orEmpty(),
+                )
+            }
+            PendingOperationType.DELETE -> {
+                val item = resolveRemoteItem(operation, connection, targetEntity) ?: return
+                mutateItem(
+                    connection.baseUrl,
+                    connection.token,
+                    targetEntity,
+                    "remove",
+                    item,
+                    null,
+                    null,
+                    null,
+                    null,
+                )
+            }
+            PendingOperationType.MOVE -> {
+                val source = operation.sourceEntityId?.ifBlank { null } ?: connection.entityId
+                mutateItem(
+                    connection.baseUrl,
+                    connection.token,
+                    targetEntity,
+                    "add",
+                    operation.todo.title,
+                    null,
+                    null,
+                    operation.todo.description.takeIf { it.isNotBlank() },
+                    operation.todo.dueDate,
+                )
+                val sourceItem = resolveRemoteItem(
+                    operation.copy(todo = operation.todo.copy(listEntityId = source)),
+                    connection,
+                    source,
+                )
+                if (sourceItem != null) {
+                    mutateItem(
+                        connection.baseUrl,
+                        connection.token,
+                        source,
+                        "remove",
+                        sourceItem,
+                        null,
+                        null,
+                        null,
+                        null,
+                    )
+                }
+            }
         }
-        mutateItem(
-            connection.baseUrl,
-            connection.token,
-            connection.entityId,
-            when (operation.type) {
-                PendingOperationType.ADD -> "add"
-                PendingOperationType.UPDATE -> "update"
-                PendingOperationType.DELETE -> "remove"
-            },
-            resolvedItem ?: operation.previousTitle ?: operation.todo.title,
-            operation.todo.title.takeIf { operation.type == PendingOperationType.UPDATE },
-            if (operation.type == PendingOperationType.UPDATE) {
-                if (operation.todo.completed) "completed" else "needs_action"
-            } else {
-                null
-            },
-        )
     }
 
     private suspend fun configuredApi(): Pair<HomeAssistantApi, String> {
@@ -299,6 +377,8 @@ private suspend fun defaultMutateTodoItem(
     item: String,
     rename: String?,
     status: String?,
+    description: String?,
+    due: String?,
 ) {
     HomeAssistantWebSocket().mutateTodo(
         baseUrl = connection,
@@ -308,6 +388,8 @@ private suspend fun defaultMutateTodoItem(
         item = item,
         rename = rename,
         status = status,
+        description = description,
+        due = due,
     )
 }
 
@@ -371,7 +453,6 @@ private fun createDefaultApi(baseUrl: String, token: String): HomeAssistantApi =
                     try {
                         chain.proceed(req)
                     } catch (e: java.io.IOException) {
-                        // Bubble a clearer message for UI handling
                         throw java.io.IOException("Connection error communicating with Home Assistant: ${e.message}", e)
                     }
                 }
