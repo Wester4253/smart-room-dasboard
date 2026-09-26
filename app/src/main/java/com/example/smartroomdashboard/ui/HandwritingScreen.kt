@@ -29,6 +29,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun HandwritingScreen(
     ocrEngine: OcrEngine,
+    onHome: () -> Unit,
     onBack: () -> Unit,
     onText: (String) -> Unit,
     modifier: Modifier = Modifier,
@@ -64,18 +65,18 @@ fun HandwritingScreen(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            OutlinedButton(
+            EinkOutlinedButton(
                 onClick = { inkView?.clear() },
-                modifier = Modifier.weight(1f).height(56.dp),
+                modifier = Modifier.weight(1f),
             ) { Text("Clear") }
-            OutlinedButton(
+            EinkOutlinedButton(
                 onClick = { inkView?.undo() },
                 enabled = hasInk,
-                modifier = Modifier.weight(1f).height(56.dp),
+                modifier = Modifier.weight(1f),
             ) { Text("Undo") }
-            Button(
+            EinkButton(
                 onClick = {
-                    val view = inkView ?: return@Button
+                    val view = inkView ?: return@EinkButton
                     recognizing = true
                     notice = "Reading handwriting…"
                     scope.launch {
@@ -105,7 +106,7 @@ fun HandwritingScreen(
                     }
                 },
                 enabled = hasInk && !recognizing,
-                modifier = Modifier.weight(1.4f).height(56.dp),
+                modifier = Modifier.weight(1.4f),
             ) { Text(if (recognizing) "Reading…" else "Convert") }
         }
         OutlinedTextField(
@@ -119,15 +120,19 @@ fun HandwritingScreen(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            OutlinedButton(
+            EinkOutlinedButton(
+                onClick = onHome,
+                modifier = Modifier.weight(1f),
+            ) { Text("Home") }
+            EinkOutlinedButton(
                 onClick = onBack,
-                modifier = Modifier.weight(1f).height(56.dp),
+                modifier = Modifier.weight(1f),
             ) { Text("Back") }
-            Button(
+            EinkButton(
                 onClick = { onText(manualText.trim()) },
                 enabled = manualText.isNotBlank(),
-                modifier = Modifier.weight(1f).height(56.dp),
-            ) { Text("Add task") }
+                modifier = Modifier.weight(1f),
+            ) { Text("Use text") }
         }
     }
 }

@@ -1,5 +1,6 @@
 package com.example.smartroomdashboard.data.remote
 
+import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeout
@@ -230,6 +231,113 @@ class HomeAssistantWebSocket(
             }
         }
     }
+
+    /**
+     * Sends one command and returns its `result`.
+     *
+     * Shares the auth handshake with [listTodoItems]; only the command and the
+     * result shape differ. This is how the app asks the instance for its own
+     * Nabu Casa address instead of making the user copy it.
+     */
+    suspend fun <T> request(
+        baseUrl: String,
+        token: String,
+        command: String,
+        parse: (JsonObject) -> T,
+    ): Result<T> = withTimeout(20_000) {
+        suspendCancellableCoroutine { continuation ->
+            val client = OkHttpClient.Builder()
+                .connectTimeout(20, TimeUnit.SECONDS)
+                .readTimeout(0, TimeUnit.MILLISECONDS)
+                .writeTimeout(20, TimeUnit.SECONDS)
+                .build()
+            val finished = AtomicBoolean(false)
+            lateinit var socket: WebSocket
+
+            fun finish(result: Result<T>) {
+                if (!finished.compareAndSet(false, true)) return
+                if (continuation.isActive) {
+                    // The continuation yields `Result<T>`, so a success resumes with
+                    // the whole Result rather than its unwrapped value.
+                    result.fold(
+                        onSuccess = { continuation.resume(Result.success(it)) },
+                        onFailure = { continuation.resumeWithException(it) },
+                    )
+                }
+                runCatching { socket.close(1000, "done") }
+            }
+
+            val listener = object : WebSocketListener() {
+                private var authenticated = false
+
+                override fun onMessage(webSocket: WebSocket, text: String) {
+                    runCatching {
+                        val json = JsonParser.parseString(text).asJsonObject
+                        when (json.get("type")?.asString) {
+                            "auth_required" -> webSocket.send(
+                                """{"type":"auth","access_token":${jsonString(token)}}""",
+                            )
+                            "auth_ok" -> {
+                                authenticated = true
+                                webSocket.send("""{"id":1,"type":${jsonString(command)}}""")
+                            }
+                            "auth_invalid" -> finish(
+                                Result.failure(IllegalStateException("Home Assistant rejected the API token")),
+                            )
+                            "result" -> {
+                                if (!authenticated || json.get("id")?.asInt != 1) return
+                                val success = json.get("success")?.asBoolean ?: false
+                                if (!success) {
+                                    val error = json.getAsJsonObject("error")
+                                    val message = error?.get("message")?.asString
+                                        ?: "command failed"
+                                    finish(Result.failure(IllegalStateException(message)))
+                                } else {
+                                    finish(runCatching { parse(json) })
+                                }
+                            }
+                        }
+                    }.onFailure { finish(Result.failure(it)) }
+                }
+
+                override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+                    finish(Result.failure(IllegalStateException("WebSocket failed: ${t.message}", t)))
+                }
+
+                override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+                    finish(
+                        Result.failure(
+                            IllegalStateException("WebSocket closed before the reply arrived ($code)"),
+                        ),
+                    )
+                }
+            }
+
+            socket = client.newWebSocket(
+                Request.Builder()
+                    .url(homeAssistantWebSocketUrl(baseUrl))
+                    .header("Authorization", "Bearer $token")
+                    .build(),
+                listener,
+            )
+            continuation.invokeOnCancellation {
+                finished.set(true)
+                socket.cancel()
+            }
+        }
+    }
+}
+
+/** Parses the `cloud/status` result into a [CloudInfo]. */
+internal fun parseCloudInfo(json: JsonObject): CloudInfo {
+    val result = json.getAsJsonObject("result") ?: JsonObject()
+    fun str(key: String): String = result.get(key)?.takeIf { !it.isJsonNull }?.asString.orEmpty()
+    fun bool(key: String): Boolean = result.get(key)?.takeIf { !it.isJsonNull }?.asBoolean ?: false
+    return CloudInfo(
+        loggedIn = bool("logged_in"),
+        remoteDomain = str("remote_domain"),
+        remoteConnected = bool("remote_connected"),
+    )
 }
 
 private fun jsonString(value: String): String =

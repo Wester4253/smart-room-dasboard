@@ -32,6 +32,15 @@ interface TodoRepository {
     suspend fun setCompleted(todo: Todo, completed: Boolean): Result<Todo>
     suspend fun move(todo: Todo, destEntityId: String): Result<Todo>
     suspend fun testConnection(baseUrl: String, token: String): Result<String>
+
+    /**
+     * Ask the instance for its own Home Assistant Cloud remote address.
+     *
+     * This is how the app learns a Nabu Casa URL without the user reading it off a
+     * settings page: once connected over the local network we can ask, and
+     * `cloud/status` reports `remote_domain` (the `<id>.ui.nabu.casa` host).
+     */
+    suspend fun cloudInfo(baseUrl: String, token: String): Result<CloudInfo>
 }
 
 data class TodoEntity(
@@ -332,6 +341,9 @@ class HomeAssistantTodoRepository(
             entityId = config.todoEntityId,
         )
     }
+
+    override suspend fun cloudInfo(baseUrl: String, token: String): Result<CloudInfo> =
+        HomeAssistantWebSocket().request(baseUrl, token, CloudCommands.STATUS, ::parseCloudInfo)
 
     override suspend fun testConnection(baseUrl: String, token: String): Result<String> = runCatching {
         val client = okhttp3.OkHttpClient.Builder()

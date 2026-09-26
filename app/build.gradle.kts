@@ -18,6 +18,21 @@ android {
         vectorDrawables.useSupportLibrary = true
     }
 
+    signingConfigs {
+        // A real keystore is supplied through these (gitignored) gradle.properties keys.
+        // With none present, release falls back to the debug key so `assembleRelease`
+        // still yields an installable APK for sideloading onto the tablet.
+        create("release") {
+            val storePath = providers.gradleProperty("RELEASE_STORE_FILE").orNull
+            if (storePath != null) {
+                storeFile = file(storePath)
+                storePassword = providers.gradleProperty("RELEASE_STORE_PASSWORD").orNull
+                keyAlias = providers.gradleProperty("RELEASE_KEY_ALIAS").orNull
+                keyPassword = providers.gradleProperty("RELEASE_KEY_PASSWORD").orNull
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
@@ -25,6 +40,11 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
+            signingConfig = if (providers.gradleProperty("RELEASE_STORE_FILE").isPresent) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
         }
     }
 

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.example.smartroomdashboard.data.PairingProtocolTest" tests="9" skipped="0" failures="0" errors="0" timestamp="2026-09-26T08:43:05.363Z" hostname="C4CHY0S" time="0.006">
+  <properties/>
+  <testcase name="a truncated body is refused" classname="com.example.smartroomdashboard.data.PairingProtocolTest" time="0.003"/>
+  <testcase name="a GET is refused" classname="com.example.smartroomdashboard.data.PairingProtocolTest" time="0.0"/>
+  <testcase name="multi-byte characters survive the byte length arithmetic" classname="com.example.smartroomdashboard.data.PairingProtocolTest" time="0.0"/>
+  <testcase name="an oversized body is refused before it is buffered" classname="com.example.smartroomdashboard.data.PairingProtocolTest" time="0.0"/>
+  <testcase name="a quote in a location name cannot break the json" classname="com.example.smartroomdashboard.data.PairingProtocolTest" time="0.001"/>
+  <testcase name="a well formed push is accepted" classname="com.example.smartroomdashboard.data.PairingProtocolTest" time="0.0"/>
+  <testcase name="the wrong code is refused" classname="com.example.smartroomdashboard.data.PairingProtocolTest" time="0.0"/>
+  <testcase name="a missing content length is refused" classname="com.example.smartroomdashboard.data.PairingProtocolTest" time="0.0"/>
+  <testcase name="accepts the exact bytes the python integration emits" classname="com.example.smartroomdashboard.data.PairingProtocolTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

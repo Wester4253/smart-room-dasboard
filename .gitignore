@@ -1,1 +1,4 @@
 local.properties
+# Release signing material, if a real keystore is ever configured.
+*.jks
+*.keystore

@@ -1,12 +1,21 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuite name="com.example.smartroomdashboard.data.HomeAssistantTodoRepositoryTest" tests="6" skipped="0" failures="0" errors="0" timestamp="2026-09-24T19:32:46.520Z" hostname="RCHL1NUX" time="0.341">
+<testsuite name="com.example.smartroomdashboard.data.HomeAssistantTodoRepositoryTest" tests="15" skipped="0" failures="0" errors="0" timestamp="2026-09-26T08:43:05.117Z" hostname="C4CHY0S" time="0.243">
   <properties/>
-  <testcase name="refresh never falls back to the broken REST get_items endpoint" classname="com.example.smartroomdashboard.data.HomeAssistantTodoRepositoryTest" time="0.129"/>
-  <testcase name="add remains queued until a later refresh can synchronize" classname="com.example.smartroomdashboard.data.HomeAssistantTodoRepositoryTest" time="0.005"/>
-  <testcase name="defaultListTodoItems retries the socket but never calls todo get_items" classname="com.example.smartroomdashboard.data.HomeAssistantTodoRepositoryTest" time="0.165"/>
-  <testcase name="update uses the previous summary instead of the local UUID" classname="com.example.smartroomdashboard.data.HomeAssistantTodoRepositoryTest" time="0.006"/>
-  <testcase name="add persists locally before remote synchronization" classname="com.example.smartroomdashboard.data.HomeAssistantTodoRepositoryTest" time="0.015"/>
-  <testcase name="websocket list command parses items and builds the socket url" classname="com.example.smartroomdashboard.data.HomeAssistantTodoRepositoryTest" time="0.02"/>
+  <testcase name="refresh never falls back to the broken REST get_items endpoint" classname="com.example.smartroomdashboard.data.HomeAssistantTodoRepositoryTest" time="0.089"/>
+  <testcase name="add remains queued until a later refresh can synchronize" classname="com.example.smartroomdashboard.data.HomeAssistantTodoRepositoryTest" time="0.003"/>
+  <testcase name="pairing body round trips through the parser" classname="com.example.smartroomdashboard.data.HomeAssistantTodoRepositoryTest" time="0.011"/>
+  <testcase name="defaultListTodoItems retries the socket but never calls todo get_items" classname="com.example.smartroomdashboard.data.HomeAssistantTodoRepositoryTest" time="0.122"/>
+  <testcase name="pairing push drops entities that are not todo lists" classname="com.example.smartroomdashboard.data.HomeAssistantTodoRepositoryTest" time="0.003"/>
+  <testcase name="pairing push with an implausible url is rejected" classname="com.example.smartroomdashboard.data.HomeAssistantTodoRepositoryTest" time="0.001"/>
+  <testcase name="update uses the previous summary instead of the local UUID" classname="com.example.smartroomdashboard.data.HomeAssistantTodoRepositoryTest" time="0.002"/>
+  <testcase name="pairing push with the wrong code is rejected" classname="com.example.smartroomdashboard.data.HomeAssistantTodoRepositoryTest" time="0.0"/>
+  <testcase name="pairing push is accepted with the matching code" classname="com.example.smartroomdashboard.data.HomeAssistantTodoRepositoryTest" time="0.0"/>
+  <testcase name="add persists locally before remote synchronization" classname="com.example.smartroomdashboard.data.HomeAssistantTodoRepositoryTest" time="0.005"/>
+  <testcase name="cloud status without remote access yields no url" classname="com.example.smartroomdashboard.data.HomeAssistantTodoRepositoryTest" time="0.001"/>
+  <testcase name="a discovered local url is recognized as not a cloud host" classname="com.example.smartroomdashboard.data.HomeAssistantTodoRepositoryTest" time="0.0"/>
+  <testcase name="pairing code is six digits and not trivially guessable" classname="com.example.smartroomdashboard.data.HomeAssistantTodoRepositoryTest" time="0.003"/>
+  <testcase name="websocket list command parses items and builds the socket url" classname="com.example.smartroomdashboard.data.HomeAssistantTodoRepositoryTest" time="0.001"/>
+  <testcase name="cloud status parses the nabu casa remote domain" classname="com.example.smartroomdashboard.data.HomeAssistantTodoRepositoryTest" time="0.0"/>
   <system-out><![CDATA[]]></system-out>
   <system-err><![CDATA[]]></system-err>
 </testsuite>

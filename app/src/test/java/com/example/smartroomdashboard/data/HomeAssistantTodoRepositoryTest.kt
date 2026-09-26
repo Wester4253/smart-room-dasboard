@@ -5,15 +5,22 @@ import com.example.smartroomdashboard.data.local.PendingTodoOperation
 import com.example.smartroomdashboard.data.local.TodoLocalStore
 import com.example.smartroomdashboard.data.remote.HomeAssistantApi
 import com.example.smartroomdashboard.data.remote.HomeAssistantTodoRepository
+import com.example.smartroomdashboard.data.remote.PairingServer
 import com.example.smartroomdashboard.data.remote.RemoteTodo
 import com.example.smartroomdashboard.data.remote.HomeAssistantState
 import com.example.smartroomdashboard.data.remote.defaultListTodoItems
 import com.example.smartroomdashboard.data.remote.homeAssistantWebSocketUrl
+import com.example.smartroomdashboard.data.remote.pairingRequestBody
+import com.example.smartroomdashboard.data.remote.parseCloudInfo
 import com.example.smartroomdashboard.data.remote.parseTodoItemListResult
 import com.example.smartroomdashboard.data.remote.toDomain
 import com.example.smartroomdashboard.data.security.SecureStorage
 import com.example.smartroomdashboard.domain.AppSettings
+import com.example.smartroomdashboard.domain.PairingPayload
 import com.example.smartroomdashboard.domain.Todo
+import com.example.smartroomdashboard.domain.isNabuCasaHost
+import com.example.smartroomdashboard.domain.parsePairingPayload
+import com.google.gson.JsonParser
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
@@ -35,7 +42,7 @@ class HomeAssistantTodoRepositoryTest {
             listItems = { _, _, _, _ ->
                 listOf(RemoteTodo(summary = "Buy milk", uid = "remote-1"))
             },
-            mutateItem = { _, _, _, operation, item, rename, _ ->
+            mutateItem = { _, _, _, operation, item, rename, _, _, _ ->
                 if (operation == "add") api.lastAdded = item
                 if (operation == "update") {
                     api.lastUpdatedItem = item
@@ -64,7 +71,7 @@ class HomeAssistantTodoRepositoryTest {
             listItems = { _, _, _, _ ->
                 listOf(RemoteTodo(summary = "Buy milk", uid = "remote-1"))
             },
-            mutateItem = { _, _, _, _, _, _, _ ->
+            mutateItem = { _, _, _, _, _, _, _, _, _ ->
                 if (api.offline) throw IOException("offline")
             },
         )
@@ -90,7 +97,7 @@ class HomeAssistantTodoRepositoryTest {
             listItems = { _, _, _, _ ->
                 listOf(RemoteTodo(summary = "Buy milk", uid = "remote-1"))
             },
-            mutateItem = { _, _, _, _, item, rename, _ ->
+            mutateItem = { _, _, _, _, item, rename, _, _, _ ->
                 api.lastUpdatedItem = item
                 api.lastUpdatedRename = rename
             },
@@ -202,5 +209,113 @@ class HomeAssistantTodoRepositoryTest {
             listOf(HomeAssistantState(entity_id = "todo.room", state = "1")),
         )
 
+    }
+
+    @Test
+    fun `cloud status parses the nabu casa remote domain`() {
+        val info = parseCloudInfo(
+            JsonParser.parseString(
+                """
+                {"id":1,"type":"result","success":true,"result":{
+                  "logged_in":true,
+                  "remote_domain":"a1b2c3d4.ui.nabu.casa",
+                  "remote_connected":true
+                }}
+                """.trimIndent(),
+            ).asJsonObject,
+        )
+        assertEquals(true, info.loggedIn)
+        assertEquals("a1b2c3d4.ui.nabu.casa", info.remoteDomain)
+        assertEquals("https://a1b2c3d4.ui.nabu.casa", info.remoteUrl)
+    }
+
+    @Test
+    fun `cloud status without remote access yields no url`() {
+        val info = parseCloudInfo(
+            JsonParser.parseString(
+                """{"id":1,"type":"result","success":true,"result":{
+                     "logged_in":true,"remote_domain":"","remote_connected":false}}""",
+            ).asJsonObject,
+        )
+        assertEquals(null, info.remoteUrl)
+    }
+
+    @Test
+    fun `a discovered local url is recognized as not a cloud host`() {
+        // Guards the upgrade path: only a nabu.casa host short-circuits it, so a
+        // local address always gets the chance to be upgraded.
+        assertEquals(false, "http://192.168.1.50:8123/".isNabuCasaHost())
+    }
+
+    private fun pairingJson(code: String, url: String, entities: String = "[]") =
+        """{"code":"$code","baseUrl":"$url","locationName":"Home","todoEntities":$entities}"""
+
+    @Test
+    fun `pairing push is accepted with the matching code`() {
+        val payload = parsePairingPayload(
+            pairingJson(
+                "123456",
+                "https://a1b2c3d4.ui.nabu.casa",
+                """[["todo.shop","Shopping"],["todo.work","Work"]]""",
+            ),
+            expectedCode = "123456",
+        )
+        assertEquals("https://a1b2c3d4.ui.nabu.casa", payload?.baseUrl)
+        assertEquals(2, payload?.todoEntities?.size)
+        assertEquals(true, payload?.isNabuCasa)
+    }
+
+    @Test
+    fun `pairing push with the wrong code is rejected`() {
+        assertEquals(
+            null,
+            parsePairingPayload(pairingJson("999999", "https://x.ui.nabu.casa"), "123456"),
+        )
+    }
+
+    @Test
+    fun `pairing push with an implausible url is rejected`() {
+        // Otherwise a hostile push could steer the sign-in WebView, and with it
+        // the Home Assistant password, at an address of the sender's choosing.
+        assertEquals(null, parsePairingPayload(pairingJson("123456", "not-a-url"), "123456"))
+        assertEquals(null, parsePairingPayload(pairingJson("123456", "file:///etc"), "123456"))
+    }
+
+    @Test
+    fun `pairing push drops entities that are not todo lists`() {
+        val payload = parsePairingPayload(
+            pairingJson(
+                "123456",
+                "http://ha.local:8123/",
+                """[["todo.shop","Shopping"],["light.kitchen","Kitchen"],["","x"]]""",
+            ),
+            "123456",
+        )
+        assertEquals(listOf("todo.shop" to "Shopping"), payload?.todoEntities)
+    }
+
+    @Test
+    fun `pairing body round trips through the parser`() {
+        val original = PairingPayload(
+            baseUrl = "https://a1b2c3d4.ui.nabu.casa",
+            todoEntities = listOf("todo.shop" to "Shopping", "todo.work" to "Work"),
+            locationName = "Home",
+        )
+        val body = pairingRequestBody("424242", original)
+        val parsed = parsePairingPayload(body, "424242")
+        assertEquals(original.baseUrl, parsed?.baseUrl)
+        assertEquals(original.todoEntities, parsed?.todoEntities)
+        assertEquals(original.locationName, parsed?.locationName)
+    }
+
+    @Test
+    fun `pairing code is six digits and not trivially guessable`() {
+        repeat(50) {
+            val code = PairingServer.generateCode()
+            assertEquals(6, code.length)
+            assertEquals(true, code.all { it.isDigit() })
+            // Reject repeated-digit runs like 111111.
+            assertEquals(true, code.toSet().size >= 5)
+        }
     }
 }

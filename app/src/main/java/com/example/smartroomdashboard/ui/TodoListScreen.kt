@@ -28,6 +28,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -47,16 +48,16 @@ import com.example.smartroomdashboard.domain.Todo
 @Composable
 fun TodoListScreen(
     state: TodoUiState,
+    onHome: () -> Unit,
     onRefresh: () -> Unit,
-    onAdd: (String) -> Unit,
-    onUpdate: (Todo) -> Unit,
+    onAdd: (String, String) -> Unit,
+    onOpen: (Todo) -> Unit,
     onDelete: (Todo) -> Unit,
     onToggle: (Todo) -> Unit,
     onMessageShown: () -> Unit,
     onHandwriting: (((String) -> Unit)) -> Unit,
     contentPadding: PaddingValues,
 ) {
-    var editor by remember { mutableStateOf<Todo?>(null) }
     var showAdd by remember { mutableStateOf(false) }
     Column(
         modifier = Modifier
@@ -64,26 +65,31 @@ fun TodoListScreen(
             .padding(contentPadding)
             .padding(horizontal = 16.dp),
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            Text("${state.todos.count { !it.completed }} open · ${state.todos.size} total")
-            OutlinedButton(onClick = onRefresh, enabled = !state.isBusy) {
-                Text(if (state.isBusy) "Refreshing" else "Refresh")
-            }
+        ScreenHeader(
+            title = "${state.todos.count { !it.completed }} open · ${state.todos.size} total",
+            onHome = onHome,
+            trailing = {
+                EinkOutlinedButton(
+                    onClick = onRefresh,
+                    enabled = !state.isBusy,
+                    height = 52.dp,
+                ) { Text(if (state.isBusy) "…" else "Refresh") }
+            },
+        )
+        if (state.isBusy) {
+            EinkBusyBar("Talking to Home Assistant…")
         }
-        if (state.isBusy) Text("Loading tasks from Home Assistant…")
         if (state.todos.isEmpty()) {
             Column(
-                modifier = Modifier.weight(1f).fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
                 verticalArrangement = Arrangement.Center,
             ) {
-                Icon(Icons.Outlined.TouchApp, contentDescription = null, modifier = Modifier.size(48.dp))
-                Text("No tasks yet")
-                Text("Add a task or write one by hand.")
+                EinkEmptyState(
+                    title = "No tasks yet",
+                    subtitle = "Add a task or write one by hand.",
+                )
             }
         } else {
             LazyColumn(
@@ -92,21 +98,23 @@ fun TodoListScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 items(state.todos, key = { it.id }) { todo ->
-                    TodoRow(todo, onToggle, { editor = todo }, onDelete)
+                    TodoRow(todo, onToggle, { onOpen(todo) }, onDelete)
                 }
             }
         }
         Row(
-            modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 12.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Button(
+            EinkButton(
                 onClick = { showAdd = true },
-                modifier = Modifier.weight(1f).height(56.dp),
+                modifier = Modifier.weight(1f),
             ) { Text("Add task") }
-            OutlinedButton(
-                onClick = { onHandwriting { handwritten -> onAdd(handwritten) } },
-                modifier = Modifier.weight(1f).height(56.dp),
+            EinkOutlinedButton(
+                onClick = { onHandwriting { handwritten -> onAdd(handwritten, "") } },
+                modifier = Modifier.weight(1f),
             ) { Text("Write task") }
         }
     }
@@ -114,78 +122,102 @@ fun TodoListScreen(
     if (showAdd) {
         TodoEditorDialog(
             title = "Add task",
-            initial = "",
+            initialTitle = "",
+            initialDescription = "",
             onDismiss = { showAdd = false },
-            onSave = {
-                onAdd(it)
+            onSave = { title, description ->
+                onAdd(title, description)
                 showAdd = false
             },
             onHandwriting = {
                 showAdd = false
-                onHandwriting { handwritten -> onAdd(handwritten) }
+                onHandwriting { handwritten -> onAdd(handwritten, "") }
             },
         )
     }
-    editor?.let { todo ->
-        TodoEditorDialog(
-            title = "Edit task",
-            initial = todo.title,
-            onDismiss = { editor = null },
-            onSave = {
-                onUpdate(todo.copy(title = it))
-                editor = null
-            },
-        )
-    }
-    state.message?.let { message ->
-        AlertDialog(
-            onDismissRequest = onMessageShown,
-            title = { Text("Notice") },
-            text = { Text(message) },
-            confirmButton = { TextButton(onClick = onMessageShown) { Text("OK") } },
-        )
-    }
+    // `state.message` is rendered once, by SmartRoomApp. It used to be rendered
+    // only here, so a failed mutation started from the board or the card detail
+    // screen was silently dropped.
 }
 
 @Composable
 private fun TodoRow(
     todo: Todo,
     onToggle: (Todo) -> Unit,
-    onEdit: () -> Unit,
+    onOpen: () -> Unit,
     onDelete: (Todo) -> Unit,
 ) {
-    Card(
-        modifier = Modifier.fillMaxWidth().border(2.dp, Color.Black, RoundedCornerShape(4.dp)),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-    ) {
+    // Delete is irreversible and syncs to Home Assistant, so it asks first. The
+    // card-detail screen uses a two-tap confirm; a dialog here matches the
+    // existing `TodoEditorDialog` styling.
+    var confirmDelete by remember(todo.id) { mutableStateOf(false) }
+
+    EinkCard(onClick = onOpen, modifier = Modifier.fillMaxWidth()) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp, horizontal = 8.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 4.dp, horizontal = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Checkbox(checked = todo.completed, onCheckedChange = { onToggle(todo) })
-            Text(
-                text = todo.title,
-                modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
-                textDecoration = if (todo.completed) TextDecoration.LineThrough else null,
-            )
-            IconButton(onClick = onEdit) { Icon(Icons.Outlined.Edit, contentDescription = "Edit") }
-            IconButton(onClick = { onDelete(todo) }) {
-                Icon(Icons.Outlined.DeleteOutline, contentDescription = "Delete")
+            Column(Modifier.weight(1f).padding(horizontal = 8.dp)) {
+                Text(
+                    text = todo.title,
+                    textDecoration = if (todo.completed) TextDecoration.LineThrough else null,
+                )
+                if (todo.dueDate?.isNotBlank() == true) {
+                    Text(
+                        text = "Due ${todo.dueDate}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            IconButton(onClick = onOpen) { Icon(Icons.Outlined.Edit, contentDescription = "Open") }
+            IconButton(
+                onClick = { if (confirmDelete) onDelete(todo) else confirmDelete = true },
+            ) {
+                Icon(
+                    Icons.Outlined.DeleteOutline,
+                    contentDescription = if (confirmDelete) "Confirm delete" else "Delete",
+                    tint = if (confirmDelete) {
+                        MaterialTheme.colorScheme.error
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                )
             }
         }
+    }
+    if (confirmDelete) {
+        AlertDialog(
+            onDismissRequest = { confirmDelete = false },
+            title = { Text("Delete this task?") },
+            text = { Text("\"${todo.title}\" will be removed from Home Assistant.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmDelete = false
+                    onDelete(todo)
+                }) { Text("Delete") }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmDelete = false }) { Text("Keep") }
+            },
+        )
     }
 }
 
 @Composable
 private fun TodoEditorDialog(
     title: String,
-    initial: String,
+    initialTitle: String,
+    initialDescription: String,
     onDismiss: () -> Unit,
-    onSave: (String) -> Unit,
+    onSave: (String, String) -> Unit,
     onHandwriting: (() -> Unit)? = null,
 ) {
-    var text by remember(initial) { mutableStateOf(initial) }
+    var text by remember(initialTitle) { mutableStateOf(initialTitle) }
+    var description by remember(initialDescription) { mutableStateOf(initialDescription) }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
@@ -197,6 +229,12 @@ private fun TodoEditorDialog(
                     label = { Text("Task") },
                     singleLine = true,
                 )
+                OutlinedTextField(
+                    value = description,
+                    onValueChange = { description = it },
+                    label = { Text("Notes (optional)") },
+                    minLines = 2,
+                )
                 onHandwriting?.let {
                     OutlinedButton(onClick = it, modifier = Modifier.fillMaxWidth()) {
                         Icon(Icons.Outlined.TouchApp, contentDescription = null)
@@ -207,7 +245,7 @@ private fun TodoEditorDialog(
             }
         },
         confirmButton = {
-            Button(onClick = { onSave(text) }, enabled = text.isNotBlank()) { Text("Save") }
+            Button(onClick = { onSave(text, description) }, enabled = text.isNotBlank()) { Text("Save") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
     )

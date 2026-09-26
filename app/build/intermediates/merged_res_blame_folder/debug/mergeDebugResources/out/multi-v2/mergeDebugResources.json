@@ -571,6 +571,42 @@
                     }
                 },
                 {
+                    "source": "/home/wstr/smart-room-dasboard/app/src/main/res/values/strings.xml",
+                    "from": {
+                        "startLines": "1",
+                        "startColumns": "4",
+                        "startOffsets": "16",
+                        "endColumns": "57",
+                        "endOffsets": "69"
+                    },
+                    "to": {
+                        "startLines": "322",
+                        "startColumns": "4",
+                        "startOffsets": "21079",
+                        "endColumns": "57",
+                        "endOffsets": "21132"
+                    }
+                },
+                {
+                    "source": "/home/wstr/smart-room-dasboard/app/src/main/res/values/styles.xml",
+                    "from": {
+                        "startLines": "1",
+                        "startColumns": "4",
+                        "startOffsets": "16",
+                        "endLines": "7",
+                        "endColumns": "12",
+                        "endOffsets": "416"
+                    },
+                    "to": {
+                        "startLines": "1881",
+                        "startColumns": "4",
+                        "startOffsets": "125328",
+                        "endLines": "1887",
+                        "endColumns": "12",
+                        "endOffsets": "125728"
+                    }
+                },
+                {
                     "source": "/home/wstr/.gradle/caches/9.1.0/transforms/e976b17a425f715e042f2c59566fbe51/transformed/work-runtime-2.7.0/res/values/values.xml",
                     "from": {
                         "startLines": "2,3,4,5",
@@ -732,25 +768,6 @@
                     }
                 },
                 {
-                    "source": "/home/wstr/documents/code/notes/school/inquiries/213-smart-room-dashboard/app/src/main/res/values/styles.xml",
-                    "from": {
-                        "startLines": "1",
-                        "startColumns": "4",
-                        "startOffsets": "16",
-                        "endLines": "7",
-                        "endColumns": "12",
-                        "endOffsets": "416"
-                    },
-                    "to": {
-                        "startLines": "1881",
-                        "startColumns": "4",
-                        "startOffsets": "125328",
-                        "endLines": "1887",
-                        "endColumns": "12",
-                        "endOffsets": "125728"
-                    }
-                },
-                {
                     "source": "/home/wstr/.gradle/caches/9.1.0/transforms/46220645b9ae16c8ab9162d1a84d3b9f/transformed/activity-1.9.2/res/values/values.xml",
                     "from": {
                         "startLines": "2,3",
@@ -820,23 +837,6 @@
                         "endLines": "418,421,424,427,430,433,436",
                         "endColumns": "11,11,11,11,11,11,11",
                         "endOffsets": "28983,29073,29147,29232,29332,29434,29515"
-                    }
-                },
-                {
-                    "source": "/home/wstr/documents/code/notes/school/inquiries/213-smart-room-dashboard/app/src/main/res/values/strings.xml",
-                    "from": {
-                        "startLines": "1",
-                        "startColumns": "4",
-                        "startOffsets": "16",
-                        "endColumns": "57",
-                        "endOffsets": "69"
-                    },
-                    "to": {
-                        "startLines": "322",
-                        "startColumns": "4",
-                        "startOffsets": "21079",
-                        "endColumns": "57",
-                        "endOffsets": "21132"
                     }
                 },
                 {

@@ -1,8 +1,16 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuite name="com.example.smartroomdashboard.domain.TodoTest" tests="2" skipped="0" failures="0" errors="0" timestamp="2026-09-24T19:32:46.864Z" hostname="RCHL1NUX" time="0.001">
+<testsuite name="com.example.smartroomdashboard.domain.TodoTest" tests="10" skipped="0" failures="0" errors="0" timestamp="2026-09-26T08:43:05.370Z" hostname="C4CHY0S" time="0.002">
   <properties/>
+  <testcase name="onboarding script asks for a long lived token over the websocket" classname="com.example.smartroomdashboard.domain.TodoTest" time="0.0"/>
+  <testcase name="settings clamp the text scale into the supported range" classname="com.example.smartroomdashboard.domain.TodoTest" time="0.0"/>
+  <testcase name="login url points at a real frontend page, not the authorize view" classname="com.example.smartroomdashboard.domain.TodoTest" time="0.0"/>
+  <testcase name="onboarding script reports failures instead of hanging" classname="com.example.smartroomdashboard.domain.TodoTest" time="0.0"/>
+  <testcase name="primary todo entity keeps an existing choice and otherwise takes the first" classname="com.example.smartroomdashboard.domain.TodoTest" time="0.0"/>
+  <testcase name="isConfigured requires a url an entity and the completed flag" classname="com.example.smartroomdashboard.domain.TodoTest" time="0.0"/>
   <testcase name="base URL always has one trailing slash" classname="com.example.smartroomdashboard.domain.TodoTest" time="0.0"/>
-  <testcase name="new todo starts open with an id" classname="com.example.smartroomdashboard.domain.TodoTest" time="0.001"/>
+  <testcase name="implausible base urls are rejected before a webview opens" classname="com.example.smartroomdashboard.domain.TodoTest" time="0.0"/>
+  <testcase name="new todo starts open with an id" classname="com.example.smartroomdashboard.domain.TodoTest" time="0.0"/>
+  <testcase name="nabu casa remote hosts are recognised" classname="com.example.smartroomdashboard.domain.TodoTest" time="0.001"/>
   <system-out><![CDATA[]]></system-out>
   <system-err><![CDATA[]]></system-err>
 </testsuite>

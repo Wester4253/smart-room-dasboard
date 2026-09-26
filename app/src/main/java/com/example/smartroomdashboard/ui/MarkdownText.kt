@@ -17,10 +17,18 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
+/**
+ * Renders the small markdown subset Home Assistant todo descriptions use.
+ *
+ * Colours come from the theme rather than being hard-coded to `Color.Black`, and
+ * sizes are multiplied by the user's text-scale setting, which the previous
+ * `16.sp` default ignored entirely.
+ */
 @Composable
 fun MarkdownText(
     markdown: String,
@@ -28,47 +36,56 @@ fun MarkdownText(
     fontSize: TextUnit = 16.sp,
 ) {
     val blocks = remember(markdown) { parseMarkdownBlocks(markdown) }
+    val scale = LocalTextScale.current
+    val body = fontSize * scale
+    val ink = MaterialTheme.colorScheme.onSurface
+
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
         blocks.forEach { block ->
             when (block) {
                 is MarkdownBlock.Heading -> Text(
                     text = inlineMarkdown(block.text),
-                    fontSize = (22 - (block.level - 1) * 2).sp,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontSize = ((22 - (block.level - 1) * 2).sp) * scale,
                     fontWeight = FontWeight.Bold,
-                    color = Color.Black,
+                    color = ink,
                 )
                 is MarkdownBlock.Quote -> Text(
                     text = inlineMarkdown(block.text),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .border(1.dp, Color.Black, RoundedCornerShape(0.dp))
+                        .border(
+                            1.dp,
+                            MaterialTheme.colorScheme.outline,
+                            RoundedCornerShape(0.dp),
+                        )
                         .padding(8.dp),
-                    fontSize = fontSize,
+                    fontSize = body,
                     fontStyle = FontStyle.Italic,
-                    color = Color.Black,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 is MarkdownBlock.Code -> Text(
                     text = block.text,
-                    fontSize = fontSize,
+                    fontSize = body,
                     fontFamily = FontFamily.Monospace,
-                    color = Color.Black,
+                    color = ink,
                 )
                 is MarkdownBlock.ListItem -> Text(
                     text = inlineMarkdown(block.bullet + block.text),
-                    fontSize = fontSize,
-                    color = Color.Black,
+                    fontSize = body,
+                    color = ink,
                 )
                 is MarkdownBlock.Paragraph -> Text(
                     text = inlineMarkdown(block.text),
-                    fontSize = fontSize,
-                    color = Color.Black,
+                    fontSize = body,
+                    color = ink,
                 )
             }
         }
     }
 }
 
-private sealed class MarkdownBlock {
+internal sealed class MarkdownBlock {
     data class Heading(val level: Int, val text: String) : MarkdownBlock()
     data class Quote(val text: String) : MarkdownBlock()
     data class Code(val text: String) : MarkdownBlock()
